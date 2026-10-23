@@ -1,32 +1,24 @@
-export type Signal = "buy" | "sell" | "hold";
+import { Settings } from "./settings.js";
 
-const sma = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
-
-/**
- * Einfacher SMA-Crossover: kreuzt der schnelle gleitende Durchschnitt den langsamen
- * nach oben -> buy, nach unten -> sell. Bewusst simpel; eigene Strategien hier einbauen.
- */
-export class SmaCrossover {
-  private prices: number[] = [];
-  private lastDiff: number | null = null;
-
-  constructor(private fast: number, private slow: number) {}
-
-  update(price: number): Signal {
-    this.prices.push(price);
-    if (this.prices.length > this.slow) this.prices.shift();
-    if (this.prices.length < this.slow) return "hold";
-
-    const diff = sma(this.prices.slice(-this.fast)) - sma(this.prices);
-    const prev = this.lastDiff;
-    this.lastDiff = diff;
-    if (prev === null) return "hold";
-    if (prev <= 0 && diff > 0) return "buy";
-    if (prev >= 0 && diff < 0) return "sell";
-    return "hold";
-  }
-
-  get warmup(): string {
-    return `${this.prices.length}/${this.slow}`;
-  }
+export interface Signal {
+  in: boolean; // true = Coin halten, false = in USDC
+  close: number;
+  sma: number;
+  trendPct: number; // Abstand des Kurses zum SMA in %
+  momentumPct: number; // Veränderung über momentumDays in %
 }
+
+/** Trendfolge-Signal aus Schlusskursen (älteste zuerst). Gibt null zurück, solange zu wenig Historie da ist. */
+export function trendSignal(closes: number[], s: Settings["strategy"]): Signal | null {
+  const need = Math.max(s.smaDays, s.useMomentum ? s.momentumDays + 1 : 0);
+  if (closes.length < need) return null;
+  const close = closes[closes.length - 1];
+  const window = closes.slice(-s.smaDays);
+  const sma = window.reduce((a, b) => a + b, 0) / window.length;
+  const past = closes[closes.length - 1 - Math.min(s.momentumDays, closes.length - 1)];
+  const trendPct = (close / sma - 1) * 100;
+  const momentumPct = (close / past - 1) * 100;
+  return { in: trendPct > 0 && (!s.useMomentum || momentumPct > 0), close, sma, trendPct, momentumPct };
+}
+
+export const warmupDays = (s: Settings["strategy"]) => Math.max(s.smaDays, s.momentumDays + 1);

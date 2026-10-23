@@ -1,11 +1,11 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import { config, SOL_MINT } from "./config.js";
+import { env, SOL_MINT } from "./config.js";
 
 export function loadKeypair(): Keypair | null {
-  if (!config.privateKey) return null;
+  if (!env.privateKey) return null;
   try {
-    return Keypair.fromSecretKey(bs58.decode(config.privateKey.trim()));
+    return Keypair.fromSecretKey(bs58.decode(env.privateKey.trim()));
   } catch {
     throw new Error("PRIVATE_KEY konnte nicht gelesen werden (erwartet: Base58-Export aus Phantom)");
   }

@@ -1,5 +1,5 @@
 import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
-import { config } from "./config.js";
+import { env, USDC } from "./config.js";
 
 export interface Quote {
   inputMint: string;
@@ -10,27 +10,26 @@ export interface Quote {
   [key: string]: unknown;
 }
 
-export async function getQuote(inputMint: string, outputMint: string, amountRaw: bigint): Promise<Quote> {
-  const url = new URL(`${config.jupiterApi}/quote`);
+export async function getQuote(inputMint: string, outputMint: string, amountRaw: bigint, slippageBps: number): Promise<Quote> {
+  const url = new URL(`${env.jupiterApi}/quote`);
   url.searchParams.set("inputMint", inputMint);
   url.searchParams.set("outputMint", outputMint);
   url.searchParams.set("amount", amountRaw.toString());
-  url.searchParams.set("slippageBps", String(config.slippageBps));
+  url.searchParams.set("slippageBps", String(slippageBps));
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Jupiter quote ${res.status}: ${await res.text()}`);
   return (await res.json()) as Quote;
 }
 
-/** Preis von 1 Basis-Token in Quote-Token, abgeleitet aus einer Jupiter-Quote. */
-export async function getPrice(): Promise<number> {
-  const oneBase = BigInt(10 ** config.base.decimals);
-  const q = await getQuote(config.base.mint, config.quote.mint, oneBase);
-  return Number(q.outAmount) / 10 ** config.quote.decimals;
+/** Preis von 1 Token in USDC, abgeleitet aus einer Jupiter-Quote. */
+export async function getUsdcPrice(mint: string, decimals: number): Promise<number> {
+  const q = await getQuote(mint, USDC.mint, 10n ** BigInt(decimals), 50);
+  return Number(q.outAmount) / 10 ** USDC.decimals;
 }
 
 /** Führt die Quote als Swap aus und gibt die Transaktions-Signatur zurück. */
 export async function executeSwap(conn: Connection, wallet: Keypair, quote: Quote): Promise<string> {
-  const res = await fetch(`${config.jupiterApi}/swap`, {
+  const res = await fetch(`${env.jupiterApi}/swap`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

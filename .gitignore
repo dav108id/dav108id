@@ -3,3 +3,5 @@ dist/
 .env
 state.json
 STOP
+settings.json
+web/dist/
